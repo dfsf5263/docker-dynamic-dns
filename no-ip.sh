@@ -1,48 +1,62 @@
 #!/bin/bash
 
-if [ -z "$USER" ]
+if [[ -z "${USER}" ]]
 then
 	echo "No user was set. Use -u=username"
 	exit 10
+else
+    USER=${USER}
 fi
 
-if [ -z "$PASSWORD" ]
+if [[ -z "${PASSWORD}" ]]
 then
 	echo "No password was set. Use -p=password"
 	exit 20
+else
+    PASSWORD=${PASSWORD}
 fi
 
-
-if [ -z "$HOSTNAME" ]
+if [[ -z "${HOSTNAME}" ]]
 then
 	echo "No host name. Use -h=host.example.com"
 	exit 30
+else
+    HOSTNAME=${HOSTNAME}
 fi
 
+if [[ -z "${SERVICE}" ]]
+then
+	SERVICE="noip"
+else
+    SERVICE=${SERVICE}
+fi
 
-if [ -n "$DETECTIP" ]
+if [[ -n "${DETECTIP}" ]]
 then
 	IP=$(wget -qO- "http://myexternalip.com/raw")
+else
+    DETECTIP=${DETECTIP}
 fi
 
-
-if [ -n "$DETECTIP" ] && [ -z $IP ]
+if [[ -n "${DETECTIP}" ]] && [[ -z ${IP} ]]
 then
 	RESULT="Could not detect external IP."
 fi
 
 
-if [[ $INTERVAL != [0-9]* ]]
+if [[ ${INTERVAL} != [0-9]* ]]
 then
 	echo "Interval is not an integer."
 	exit 35
+else
+    INTERVAL=${INTERVAL}
 fi
 
 
 SERVICEURL="dynupdate.no-ip.com/nic/update"
-NOIPURL="https://$USER:$PASSWORD@"
+NOIPURL="https://${USER}:${PASSWORD}@"
 
-case "$SERVICE" in
+case "${SERVICE}" in
         noip)
             SERVICEURL="dynupdate.no-ip.com/nic/update"
             ;;
@@ -71,34 +85,25 @@ esac
 
 USERAGENT="--user-agent=\"no-ip shell script/1.0 mail@mail.com\""
 BASE64AUTH=$(echo -n "${USER}:${PASSWORD}" | base64)
-AUTHHEADER="--header=\"Authorization: $BASE64AUTH\""
+AUTHHEADER="--header=\"Authorization: ${BASE64AUTH}\""
 
-NOIPURL="$NOIPURL$SERVICEURL"
+NOIPURL="${NOIPURL}${SERVICEURL}"
 
-if [ -n "$IP" ] || [ -n "$HOSTNAME" ] || [ ${SERVICE} == "dynudns" ]
+if [[ -n "${IP}" ]] || [[ -n "${HOSTNAME}" ]] || [[ ${SERVICE} == "dynudns" ]]
 then
-	NOIPURL="$NOIPURL?"
+	NOIPURL="${NOIPURL}?"
 fi
 
-if [ -n "$HOSTNAME" ]
+if [[ -n "${HOSTNAME}" ]]
 then
 	NOIPURL="${NOIPURL}hostname=${HOSTNAME}"
 fi
 
-if [ -n "$IP" ]
+if [[ ${SERVICE} == "dynudns" ]]
 then
-	if [ -n "$HOSTNAME" ]
+	if [[ -n "${HOSTNAME}" ]]
 	then
-		NOIPURL="$NOIPURL&"
-	fi
-	NOIPURL="${NOIPURL}myip=$IP"
-fi
-
-if [ ${SERVICE} == "dynudns" ]
-then
-	if [ -n "$HOSTNAME" ] || [ -n "$IP" ]
-	then
-		NOIPURL="$NOIPURL&"
+		NOIPURL="${NOIPURL}&"
 	fi
 	SHA256PASSWORD=$(printf ${PASSWORD} | sha256sum | cut -d " " -f 1)
 	NOIPURL="${NOIPURL}username=${USER}&password=${SHA256PASSWORD}"
@@ -107,18 +112,25 @@ fi
 while :
 do
 
-    if [ ${SERVICE} == "dynudns" ]
+    if [[ -n "${HOSTNAME}" ]] || [[ ${SERVICE} == "dynudns" ]]
     then
-        echo "$NOIPURL"
-	    RESULT=$(wget --no-check-certificate -qO- $NOIPURL)
+        TEMPURL="${NOIPURL}&"
+    fi
+    IP=$(wget -qO- "http://myexternalip.com/raw")
+    TEMPURL="${NOIPURL}myip=$IP"
+
+    if [[ ${SERVICE} == "dynudns" ]]
+    then
+        echo "${TEMPURL}"
+	    RESULT=$(wget --no-check-certificate -qO- ${TEMPURL})
 	else
-	    echo "$AUTHHEADER $USERAGENT $NOIPURL"
-	    RESULT=$(wget --no-check-certificate -qO- $AUTHHEADER $USERAGENT $NOIPURL)
+	    echo "${AUTHHEADER} ${USERAGENT} ${TEMPURL}"
+	    RESULT=$(wget --no-check-certificate -qO- ${AUTHHEADER} ${USERAGENT} ${TEMPURL})
     fi
 
-	echo $RESULT
+	echo ${RESULT}
 
-	if [ $INTERVAL -eq 0 ]
+	if [[ ${INTERVAL} -eq 0 ]]
 	then
 		break
 	else
