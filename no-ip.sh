@@ -40,6 +40,7 @@ fi
 
 
 SERVICEURL="dynupdate.no-ip.com/nic/update"
+NOIPURL="https://$USER:$PASSWORD@"
 
 case "$SERVICE" in
         noip)
@@ -60,6 +61,7 @@ case "$SERVICE" in
 
 		dynudns)
             SERVICEURL="api.dynu.com/nic/update"
+            NOIPURL="https://"
             ;;
 
         *)
@@ -68,13 +70,12 @@ case "$SERVICE" in
 esac
 
 USERAGENT="--user-agent=\"no-ip shell script/1.0 mail@mail.com\""
-BASE64AUTH=$(echo '"$USER:$PASSWORD"' | base64)
+BASE64AUTH=$(echo -n "${USER}:${PASSWORD}" | base64)
 AUTHHEADER="--header=\"Authorization: $BASE64AUTH\""
 
-NOIPURL="https://$USER:$PASSWORD@$SERVICEURL"
+NOIPURL="$NOIPURL$SERVICEURL"
 
-
-if [ -n "$IP" ] || [ -n "$HOSTNAME" ]
+if [ -n "$IP" ] || [ -n "$HOSTNAME" ] || [ ${SERVICE} == "dynudns" ]
 then
 	NOIPURL="$NOIPURL?"
 fi
@@ -93,17 +94,29 @@ then
 	NOIPURL="${NOIPURL}myip=$IP"
 fi
 
-
-echo "$AUTHHEADER $USERAGENT $NOIPURL"
+if [ ${SERVICE} == "dynudns" ]
+then
+	if [ -n "$HOSTNAME" ] || [ -n "$IP" ]
+	then
+		NOIPURL="$NOIPURL&"
+	fi
+	SHA256PASSWORD=$(printf ${PASSWORD} | sha256sum | cut -d " " -f 1)
+	NOIPURL="${NOIPURL}username=${USER}&password=${SHA256PASSWORD}"
+fi
 
 while :
 do
 
-	RESULT=$(wget --no-check-certificate -qO- $AUTHHEADER $USERAGENT $NOIPURL)
-
+    if [ ${SERVICE} == "dynudns" ]
+    then
+        echo "$NOIPURL"
+	    RESULT=$(wget --no-check-certificate -qO- $NOIPURL)
+	else
+	    echo "$AUTHHEADER $USERAGENT $NOIPURL"
+	    RESULT=$(wget --no-check-certificate -qO- $AUTHHEADER $USERAGENT $NOIPURL)
+    fi
 
 	echo $RESULT
-
 
 	if [ $INTERVAL -eq 0 ]
 	then
